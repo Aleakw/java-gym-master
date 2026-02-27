@@ -4,15 +4,19 @@ import java.util.*;
 
 public class Timetable {
 
-
+    // O(1) получить отсортированный список занятий за день
     private Map<DayOfWeek, List<TrainingSession>> dayCache;
 
-
+    // O(1) получить занятия по дню и времени
     private Map<DayOfWeek, Map<TimeOfDay, List<TrainingSession>>> byDayAndTime;
+
+    // сразу считаем тренировки тренеров при добавлении
+    private Map<Coach, Integer> coachesCounter;
 
     public Timetable() {
         dayCache = new HashMap<>();
         byDayAndTime = new HashMap<>();
+        coachesCounter = new HashMap<>();
 
         for (DayOfWeek day : DayOfWeek.values()) {
             dayCache.put(day, new ArrayList<>());
@@ -27,16 +31,17 @@ public class Timetable {
 
         DayOfWeek day = trainingSession.getDayOfWeek();
         TimeOfDay time = trainingSession.getTimeOfDay();
+        Coach coach = trainingSession.getCoach();
 
-        if (day == null || time == null) {
+        if (day == null || time == null || coach == null) {
             return;
         }
 
-
+        // 1) Добавление в список дня
         List<TrainingSession> dayList = dayCache.get(day);
         dayList.add(trainingSession);
 
-
+        // сортируем по времени начала (разрешено делать при добавлении)
         Collections.sort(dayList, new Comparator<TrainingSession>() {
             @Override
             public int compare(TrainingSession a, TrainingSession b) {
@@ -44,7 +49,7 @@ public class Timetable {
             }
         });
 
-
+        //  Добавление в map день->время->список
         Map<TimeOfDay, List<TrainingSession>> timeMap = byDayAndTime.get(day);
 
         List<TrainingSession> sessionsAtTime = timeMap.get(time);
@@ -53,6 +58,14 @@ public class Timetable {
             timeMap.put(time, sessionsAtTime);
         }
         sessionsAtTime.add(trainingSession);
+
+        //  Сразу обновляем статистику по тренерам
+        Integer count = coachesCounter.get(coach);
+        if (count == null) {
+            coachesCounter.put(coach, 1);
+        } else {
+            coachesCounter.put(coach, count + 1);
+        }
     }
 
 
@@ -70,37 +83,23 @@ public class Timetable {
         }
 
         Map<TimeOfDay, List<TrainingSession>> timeMap = byDayAndTime.get(dayOfWeek);
-        List<TrainingSession> list = timeMap.get(timeOfDay);
+        List<TrainingSession> result = timeMap.get(timeOfDay);
 
-        if (list == null) {
+        if (result == null) {
             return new ArrayList<>();
         }
-        return list;
+        return result;
     }
 
+    //  Теперь без перебора всех тренировок: берём готовую статистику
     public List<CounterOfTrainings> getCountByCoaches() {
-        Map<Coach, Integer> counters = new HashMap<>();
-
-        for (DayOfWeek day : DayOfWeek.values()) {
-            List<TrainingSession> list = dayCache.get(day);
-
-            for (TrainingSession session : list) {
-                Coach coach = session.getCoach();
-
-                Integer count = counters.get(coach);
-                if (count == null) {
-                    counters.put(coach, 1);
-                } else {
-                    counters.put(coach, count + 1);
-                }
-            }
-        }
-
         List<CounterOfTrainings> result = new ArrayList<>();
-        for (Coach coach : counters.keySet()) {
-            result.add(new CounterOfTrainings(coach, counters.get(coach)));
+
+        for (Coach coach : coachesCounter.keySet()) {
+            result.add(new CounterOfTrainings(coach, coachesCounter.get(coach)));
         }
 
+        // сортировка по убыванию количества
         Collections.sort(result, new Comparator<CounterOfTrainings>() {
             @Override
             public int compare(CounterOfTrainings a, CounterOfTrainings b) {
